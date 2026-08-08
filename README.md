@@ -12,7 +12,8 @@ personnel records.
 | `jcl/PROMELIG.jcl` | Job control for the nightly run. |
 | `sql/promotion_eligibility.sql` | Stored procedure backing the reporting extract. |
 | `perl/load_unit_diary.pl` | Fixed-width unit diary feed loader. |
-| `java/EligibilityService.java` | Eligibility lookup for the self-service web front end. |
+| `java/src/main/java/mil/usmc/manpower/promotion/` | Eligibility lookup for the self-service web front end. |
+| `tests/` | Characterization suite covering all five components. |
 
 ## Run order
 
@@ -28,6 +29,24 @@ web tier does not depend on batch completion.
   are only populated for one component.
 - The web tier was added in 2003. The original intent was to retire the batch determination
   once the service reached parity. That did not happen.
+
+## Tests
+
+```
+make test        # every suite (GnuCOBOL, JDK 17, perl + DBD::SQLite, Docker)
+make test-fast   # skips the slow suites
+```
+
+The suite records current behavior so components can be replaced one at a time.
+Start with [`docs/testing.md`](docs/testing.md); the behavior that differs
+between the three implementations is catalogued in
+[`docs/divergence-register.md`](docs/divergence-register.md) and the bugs found
+along the way are in [`docs/defects.md`](docs/defects.md).
+
+The Java sources moved into a Maven layout under `java/` so the service can be
+compiled and tested; `MarineMaster`, `EligibilityResult`, `GradeRequirement` and
+the two repository interfaces were reconstructed from their call sites, since
+they were not in the original drop.
 
 ## Ownership
 

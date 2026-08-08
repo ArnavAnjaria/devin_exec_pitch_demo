@@ -1,0 +1,8 @@
+--- a/cobol/copybook/MARREC.cpy
++++ b/cobol/copybook/MARREC.cpy
+@@ -51,4 +51,4 @@
+                88  MM-ACTIVE-COMP          VALUE 'A'.
+                88  MM-RESERVE-COMP         VALUE 'R'.
+            05  MM-RC-DRILL-STAT            PIC X(01).
+-           05  FILLER                      PIC X(21).
++           05  FILLER                      PIC X(24).

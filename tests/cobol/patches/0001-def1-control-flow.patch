@@ -1,0 +1,28 @@
+--- a/cobol/PROMELIG.cbl
++++ b/cobol/PROMELIG.cbl
+@@ -150,16 +150,17 @@
+ 
+            IF MM-GRADE-NUM >= WS-MAX-GRADE
+                ADD 1 TO WS-BYPASS-CNT
+-               GO TO 2900-NEXT
+-           END-IF
++           ELSE
++               COMPUTE WS-TGT-GRADE = MM-GRADE-NUM + 1
+ 
+-           COMPUTE WS-TGT-GRADE = MM-GRADE-NUM + 1
++               PERFORM 2100-COMPUTE-TIG
++               PERFORM 2200-COMPUTE-TIS
++               PERFORM 2300-LOOKUP-MINIMUMS
++               PERFORM 2400-APPLY-RULES THRU 2490-EXIT
++               PERFORM 2500-WRITE-ELIG
++           END-IF
+ 
+-           PERFORM 2100-COMPUTE-TIG
+-           PERFORM 2200-COMPUTE-TIS
+-           PERFORM 2300-LOOKUP-MINIMUMS
+-           PERFORM 2400-APPLY-RULES
+-           PERFORM 2500-WRITE-ELIG.
++           PERFORM 2900-NEXT.
+ 
+        2900-NEXT.
+            PERFORM 1100-READ-MASTER.
