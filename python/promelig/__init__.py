@@ -4,6 +4,9 @@ One module per legacy component, migrated one at a time against the
 characterization suite in ``tests/``: each reproduces its engine's current
 behavior, bugs and cross-engine divergences included. See ``docs/testing.md``.
 
+* :mod:`promelig.batch` and :mod:`promelig.job` -- ``cobol/PROMELIG.cbl`` and
+  the ``jcl/PROMELIG.jcl`` orchestration around it, with the batch's own rules
+  in :mod:`promelig.cobol_rules`.
 * :mod:`promelig.eligibility` -- the web tier's real-time single-record
   determination, from
   ``java/src/main/java/mil/usmc/manpower/promotion/EligibilityService.java``.
@@ -39,9 +42,13 @@ __all__ = [
     "MissingDateError",
     "MissingGradeRequirementError",
     "Outcome",
+    "batch",
+    "cobol_copybook",
+    "cobol_rules",
     "copybook",
     "db",
     "dbapi",
+    "job",
     "oracle",
     "sql_extract",
     "unit_diary",
