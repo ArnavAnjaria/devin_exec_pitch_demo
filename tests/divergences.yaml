@@ -1,0 +1,105 @@
+# Divergence register.
+#
+# Every scenario where the COBOL batch, the Java web service and the SQL
+# reporting extract do not produce the same answer. test_equivalence.py fails if
+# the engines disagree anywhere that is not listed here, and fails if a listed
+# divergence disappears without the entry being removed.
+#
+# target: which engine's behavior wins during modernization. Per the program
+# decision of 2026-08, the Java web tier is authoritative where it clashes with
+# the batch. Entries still marked "undecided" need an owner ruling before the
+# component that carries them is migrated.
+
+divergences:
+  - id: DIV-1
+    title: Adverse material lookback is 12 months in the extract and 24 everywhere else
+    engines: [cobol, java, sql]
+    target: java
+    cause: >-
+      The 2011 change extending the lookback to 24 months updated
+      PROMELIG.cbl (WS-ADV-LOOKBACK-MOS) and EligibilityService
+      (ADV_LOOKBACK_MOS) but not SP_PROMOTION_ELIGIBILITY
+      (V_ADV_LOOKBACK_MOS), which still reads 12.
+    impact: >-
+      A Marine with adverse material 12 to 23 months old is denied on the board
+      slate and in the web tier, but shows as eligible on the roster report.
+    scenarios: [advm-12mo, advm-23mo]
+
+  - id: DIV-2
+    title: Partial months are truncated, rounded up and rounded to nearest
+    engines: [cobol, java, sql]
+    target: java
+    cause: >-
+      2150-MONTH-DIFF truncates; EligibilityService.monthsBetween rounds any
+      partial month up; the extract uses ROUND(MONTHS_BETWEEN(...)), which is
+      Oracle's fractional month rounded to nearest.
+    impact: >-
+      Every Marine within one month of a threshold can get three different
+      answers. This is the most common source of the discrepancies that have
+      been closed as "timing".
+    scenarios:
+      - anniversary-day-before-run-day
+      - anniversary-day-after-run-day
+      - month-end-promotion
+      - leap-day-promotion
+
+  - id: DIV-3
+    title: Time in grade accrues from three different base dates
+    engines: [cobol, java, sql]
+    target: java
+    cause: >-
+      The batch uses MM-DT-ORIG-PROMO for a reduced-then-restored Marine and
+      MM-DT-LAST-PROMO otherwise (REV 02 2001, directed). The web tier uses
+      MM-GRADE-EFF-DT, which only the web feed maintains, and never looks at the
+      reduction indicator. The extract always uses DT_LAST_PROMO.
+    impact: >-
+      Reduced-then-restored Marines are eligible on the board slate and denied
+      in the web tier. Adopting the Java behavior reverses a 2001 directive and
+      needs a change request before it ships.
+    review: >-
+      Program decision selects the Java behavior, but REV 02 2001 was directed
+      by message traffic; confirm the directive is superseded before migrating.
+    scenarios:
+      - reduced-with-orig-promo
+      - reduced-without-orig-promo
+      - grade-eff-dt-diverges
+
+  - id: DIV-4
+    title: The top grade is represented three ways
+    engines: [cobol, java, sql]
+    target: java
+    cause: >-
+      The batch writes no record at all, the service returns a MAXG bypass
+      result, and the extract filters the row out with GRADE_NUM < 9.
+    impact: >-
+      Reconciliation counts never line up, because "not eligible" and "not
+      considered" are indistinguishable in two of the three outputs.
+    scenarios: [grade-09-bypass]
+
+  - id: DIV-5
+    title: A grade with no requirement row is denied, dropped, or throws
+    engines: [cobol, java, sql]
+    target: undecided
+    cause: >-
+      2300-LOOKUP-MINIMUMS leaves the minimums at 999 so the record is denied
+      TIG; the extract's INNER JOIN removes the row silently; the service
+      dereferences the missing GradeRequirement and throws.
+    impact: >-
+      A corrupt or unset GRADE_NUM disappears from the roster report with no
+      error anywhere. The replacement needs one defined behavior; a rejected
+      record with a reason code is the obvious candidate.
+    scenarios: [grade-00-unset]
+
+  - id: DIV-6
+    title: A missing promotion date produces a NULL month count in the extract
+    engines: [cobol, java, sql]
+    target: java
+    cause: >-
+      Oracle GREATEST propagates NULL, so TIG_MOS is NULL when DT_LAST_PROMO is
+      not populated. Every threshold comparison against NULL is unknown, so the
+      CASE falls through to 'Y'. The batch and the service both fall back to the
+      enlistment date instead.
+    impact: >-
+      A Marine with no promotion date on file is reported eligible with a blank
+      time in grade, regardless of how long they have served.
+    scenarios: [no-promo-dates-at-all]
