@@ -23,7 +23,10 @@ from .golden import golden_path
 from .model import REPO_ROOT, Corpus
 from .normalize import Row, read_rows
 
-ENGINES = ("cobol", "java", "sql")
+# python_sql is the Python replacement for the SQL reporting extract. It is held
+# to the same standard as the legacy engines: a new engine must not introduce a
+# disagreement that tests/divergences.yaml does not already describe.
+ENGINES = ("cobol", "java", "sql", "python_sql")
 REGISTER_PATH = REPO_ROOT / "tests" / "divergences.yaml"
 MISSING = "no row"
 

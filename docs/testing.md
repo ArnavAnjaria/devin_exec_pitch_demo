@@ -25,6 +25,7 @@ Requirements:
 | Java | JDK 17, Maven |
 | Perl | `perl`, DBD::SQLite (`apt install libdbd-sqlite3-perl`) |
 | SQL | Docker (`postgres:16-alpine`) |
+| Python extract (`python/promelig`) | Docker (`postgres:16-alpine`) |
 | JCL, corpus, equivalence | Python 3 only |
 
 Suites whose tooling is missing skip rather than fail, so a partial environment
@@ -109,6 +110,26 @@ filter, the month arithmetic. `ORACLE_MONTHS_BETWEEN` and `ORACLE_GREATEST`
 reproduce the two Oracle semantics that PostgreSQL does not share (fractional
 months in 31ths, and NULL propagation through `GREATEST`), and both are tested
 against known Oracle values.
+
+### The Python replacements
+
+`python/promelig/` holds the migrated components. Each one has a suite of its own
+that reproduces the golden of the engine it replaces, and is registered in
+`ENGINES` so `test_equivalence.py` compares it against everything else:
+
+| Module | Replaces | Golden | Suite |
+| --- | --- | --- | --- |
+| `promelig.sql_extract` | `sql/promotion_eligibility.sql` | `tests/golden/python_sql.csv` | `tests/test_python_sql_extract.py` |
+
+`tests/golden/python_sql.csv` is byte-identical to `tests/golden/sql.csv` and is
+expected to stay that way until a behavior-change PR moves one of them;
+`test_reproduces_the_legacy_extract_row_for_row` asserts it directly.
+
+The extract runs against the same throwaway container as the procedure, so its
+suite carries the `docker` marker. Its month arithmetic and denial rules are also
+unit-tested without a database, and
+`test_python_months_between_agrees_with_the_plpgsql_emulation` pins the Python
+`MONTHS_BETWEEN` emulation against the PL/pgSQL one.
 
 ## Modernization workflow
 
