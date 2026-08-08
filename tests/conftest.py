@@ -6,6 +6,8 @@ import pytest
 
 TESTS_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(TESTS_DIR))
+# The Python replacements live outside the test tree and are imported by name.
+sys.path.insert(1, str(TESTS_DIR.parent / "python"))
 
 from harness.engines import cobol, postgres  # noqa: E402
 from harness.model import load_corpus  # noqa: E402
