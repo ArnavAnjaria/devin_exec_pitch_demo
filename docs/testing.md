@@ -120,6 +120,7 @@ that reproduces the golden of the engine it replaces, and is registered in
 | Module | Replaces | Golden | Suite |
 | --- | --- | --- | --- |
 | `promelig.sql_extract` | `sql/promotion_eligibility.sql` | `tests/golden/python_sql.csv` | `tests/test_python_sql_extract.py` |
+| `promelig.unit_diary` | `perl/load_unit_diary.pl` | none — see below | `tests/test_python_unit_diary.py` |
 
 `tests/golden/python_sql.csv` is byte-identical to `tests/golden/sql.csv` and is
 expected to stay that way until a behavior-change PR moves one of them;
@@ -153,16 +154,11 @@ them:
 5. **Defects are separate tickets.** `docs/defects.md` lists them with their
    reproductions.
 
-### The Python replacements
+### The unit diary loader has no golden
 
-`python/promelig/` holds the rewrites, one module per legacy component, and
-`tests/conftest.py` puts `python/` on `sys.path` so the suites can import them
-without installing anything.
-
-The unit diary loader is the first of them: `python/promelig/unit_diary.py`
-replaces `perl/load_unit_diary.pl`. It produces no eligibility determination, so
-it has no normalized rows, no golden of its own and nothing to register in
-`harness/equivalence.py` — its parity target is the master table it writes.
+`promelig.unit_diary` is the exception to the rule above: it loads the feed and
+decides nothing, so it has no normalized rows, no golden of its own and nothing
+to register in `ENGINES` — its parity target is the master table it writes.
 `tests/test_python_unit_diary.py` therefore mirrors `test_perl_loader.py` test by
 test and then runs both loaders over the same feed and the same seed rows and
 compares the resulting `MARINE_MASTER` row for row, which is what makes a drift
