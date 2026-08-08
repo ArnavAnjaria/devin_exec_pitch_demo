@@ -243,11 +243,19 @@ class ComponentError(ValueError):
 
 
 def _validate_component(component: Optional[str]) -> Optional[str]:
+    """Check a component code before it is interpolated into the query.
+
+    The comparison itself is exact, as in the legacy predicate
+    ``m.COMPONENT = P_COMPONENT``: a lower-case code matches nothing and leaves
+    the run date's report empty, and the case is not normalized. The check only
+    rejects a value that cannot be a component code at all, rather than letting
+    it reach the SQL.
+    """
     if component is None:
         return None
     if not component.isalpha() or len(component) != 1:
         raise ComponentError(f"component must be a single letter, got {component!r}")
-    return component.upper()
+    return component
 
 
 def _optional_date(value: Optional[str]) -> Optional[dt.date]:

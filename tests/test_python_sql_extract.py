@@ -131,6 +131,14 @@ def test_component_parameter_filters_the_extract(pg_database, corpus):
 
 
 @pytest.mark.docker
+def test_a_component_code_in_the_wrong_case_selects_nothing_in_both_engines(pg_database, corpus):
+    """The legacy filter is an exact comparison, so 'r' empties the report."""
+    postgres.load_corpus(pg_database, corpus)
+    assert postgres.run_extract(pg_database, corpus, component="r") == []
+    assert python_sql.run_extract(pg_database, corpus, component="r") == []
+
+
+@pytest.mark.docker
 def test_rerunning_the_same_run_date_replaces_rather_than_duplicates(pg_database, corpus):
     postgres.load_corpus(pg_database, corpus)
     first = python_sql.run_extract(pg_database, corpus)
@@ -299,6 +307,11 @@ def test_the_query_keeps_the_inner_join_and_the_grade_filter():
 
 def test_the_component_filter_is_added_only_when_asked_for():
     assert "m.COMPONENT = 'R'" in candidate_sql("R")
+
+
+def test_the_component_comparison_is_exact_and_not_case_normalized():
+    """``m.COMPONENT = P_COMPONENT`` is an exact match: 'r' selects nothing."""
+    assert "m.COMPONENT = 'r'" in candidate_sql("r")
 
 
 @pytest.mark.parametrize("component", ["R'; DROP TABLE MARINE_MASTER; --", "RR", "1", ""])
