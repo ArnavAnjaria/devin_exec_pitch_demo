@@ -120,6 +120,7 @@ that reproduces the golden of the engine it replaces, and is registered in
 | Module | Replaces | Golden | Suite |
 | --- | --- | --- | --- |
 | `promelig.sql_extract` | `sql/promotion_eligibility.sql` | `tests/golden/python_sql.csv` | `tests/test_python_sql_extract.py` |
+| `promelig.unit_diary` | `perl/load_unit_diary.pl` | none — see below | `tests/test_python_unit_diary.py` |
 
 `tests/golden/python_sql.csv` is byte-identical to `tests/golden/sql.csv` and is
 expected to stay that way until a behavior-change PR moves one of them;
@@ -152,6 +153,18 @@ them:
    change has something to point at. DIV-3 and DIV-5 need an owner ruling first.
 5. **Defects are separate tickets.** `docs/defects.md` lists them with their
    reproductions.
+
+### The unit diary loader has no golden
+
+`promelig.unit_diary` is the exception to the rule above: it loads the feed and
+decides nothing, so it has no normalized rows, no golden of its own and nothing
+to register in `ENGINES` — its parity target is the master table it writes.
+`tests/test_python_unit_diary.py` therefore mirrors `test_perl_loader.py` test by
+test and then runs both loaders over the same feed and the same seed rows and
+compares the resulting `MARINE_MASTER` row for row, which is what makes a drift
+in either implementation a failure. The comparison tests carry the `perl` marker;
+the Python-only ones do not, so the rewrite is still covered where perl is
+missing.
 
 The suites are independent, so the COBOL, Perl, SQL and web-tier migrations can
 run in parallel. `tests/test_equivalence.py` is the join point: it is what
