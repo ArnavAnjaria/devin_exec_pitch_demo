@@ -9,8 +9,14 @@ description = "Python replacements for the legacy promotion eligibility componen
 requires-python = ">=3.10"
 dependencies = []
 
+[project.optional-dependencies]
+# Only needed to run the loader against PostgreSQL; the characterization suite
+# uses SQLite from the standard library.
+postgres = ["psycopg2-binary>=2.9.9"]
+
 [project.scripts]
 promelig-sql-extract = "promelig.cli:main"
+load-unit-diary = "promelig.unit_diary:main"
 
-[tool.setuptools]
-packages = ["promelig"]
+[tool.setuptools.packages.find]
+include = ["promelig*"]

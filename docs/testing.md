@@ -153,6 +153,23 @@ them:
 5. **Defects are separate tickets.** `docs/defects.md` lists them with their
    reproductions.
 
+### The Python replacements
+
+`python/promelig/` holds the rewrites, one module per legacy component, and
+`tests/conftest.py` puts `python/` on `sys.path` so the suites can import them
+without installing anything.
+
+The unit diary loader is the first of them: `python/promelig/unit_diary.py`
+replaces `perl/load_unit_diary.pl`. It produces no eligibility determination, so
+it has no normalized rows, no golden of its own and nothing to register in
+`harness/equivalence.py` — its parity target is the master table it writes.
+`tests/test_python_unit_diary.py` therefore mirrors `test_perl_loader.py` test by
+test and then runs both loaders over the same feed and the same seed rows and
+compares the resulting `MARINE_MASTER` row for row, which is what makes a drift
+in either implementation a failure. The comparison tests carry the `perl` marker;
+the Python-only ones do not, so the rewrite is still covered where perl is
+missing.
+
 The suites are independent, so the COBOL, Perl, SQL and web-tier migrations can
 run in parallel. `tests/test_equivalence.py` is the join point: it is what
 catches a rewrite that is self-consistent but no longer agrees with the systems
