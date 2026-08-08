@@ -22,10 +22,11 @@ import os
 import re
 import sys
 from dataclasses import dataclass, fields as dataclass_fields
+from functools import lru_cache
 from pathlib import Path
-from typing import Any, Callable, Iterable, Iterator, Optional, Sequence
+from typing import Any, Callable, Iterable, Iterator, Mapping, Optional, Sequence
 
-from .copybook import FIELDS, Field
+from .copybook import ENV_VAR as COPYBOOK_ENV, Field, fields as copybook_fields
 from .dbapi import Connection, connect
 
 DEFAULT_FEED = Path("/prod/feeds/unitdiary.dat")
@@ -54,6 +55,7 @@ COLUMN_FIELDS: tuple[tuple[str, str], ...] = (
 )
 
 _ZERO_FILLED_RE = re.compile(r"0*")
+_TABLE_NAME_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)?")
 
 
 @dataclass(frozen=True)
@@ -69,15 +71,24 @@ class FeedField:
         return cls(column=column, offset=field.offset, length=field.length)
 
 
-def feed_layout(fields: Optional[dict[str, Field]] = None) -> tuple[FeedField, ...]:
+def feed_layout(fields: Optional[Mapping[str, Field]] = None) -> tuple[FeedField, ...]:
     """The feed layout, derived from MARREC.cpy rather than hard-coded."""
-    fields = FIELDS if fields is None else fields
+    fields = copybook_fields() if fields is None else fields
     return tuple(FeedField.of(column, fields[name]) for column, name in COLUMN_FIELDS)
 
 
-LAYOUT = feed_layout()
-LOADED_COLUMNS: tuple[str, ...] = tuple(field.column for field in LAYOUT)
-FEED_RECORD_LEN = max(field.offset + field.length for field in LAYOUT)
+@lru_cache(maxsize=None)
+def layout(copybook: Optional[Path] = None) -> tuple[FeedField, ...]:
+    """The feed layout, read from the copybook on first use."""
+    return feed_layout(copybook_fields(copybook))
+
+
+LOADED_COLUMNS: tuple[str, ...] = tuple(column for column, _ in COLUMN_FIELDS)
+
+
+def feed_record_len(copybook: Optional[Path] = None) -> int:
+    """Length of the part of the master record the feed carries."""
+    return max(field.offset + field.length for field in layout(copybook))
 
 
 @dataclass(frozen=True)
@@ -139,11 +150,12 @@ def is_zero_filled(value: Optional[str]) -> bool:
     return value is None or _ZERO_FILLED_RE.fullmatch(value) is not None
 
 
-def parse_line(line: str, layout: Sequence[FeedField] = LAYOUT) -> ParsedLine:
+def parse_line(line: str,
+               feed_fields: Optional[Sequence[FeedField]] = None) -> ParsedLine:
     """Split one feed line into a record. No file, no database, no side effects."""
     warnings: list[str] = []
     values: dict[str, Optional[str]] = {}
-    for field in layout:
+    for field in layout() if feed_fields is None else feed_fields:
         raw = substr(line, field.offset, field.length)
         if raw is None:
             warnings.append(
@@ -172,13 +184,14 @@ def parse_line(line: str, layout: Sequence[FeedField] = LAYOUT) -> ParsedLine:
 
 
 def parse_feed(lines: Iterable[str],
-               layout: Sequence[FeedField] = LAYOUT) -> Iterator[ParsedLine]:
+               feed_fields: Optional[Sequence[FeedField]] = None) -> Iterator[ParsedLine]:
     """Parse every non-blank line of a feed."""
+    feed_fields = layout() if feed_fields is None else feed_fields
     for line in lines:
         line = line[:-1] if line.endswith("\n") else line  # chomp
         if not line.strip():
             continue
-        yield parse_line(line, layout)
+        yield parse_line(line, feed_fields)
 
 
 class UpsertWriter:
@@ -190,6 +203,10 @@ class UpsertWriter:
 
     def __init__(self, connection: Connection, placeholder: str = "?",
                  table: str = DEFAULT_TABLE, commit_every: int = COMMIT_EVERY) -> None:
+        # The table name cannot be bound, so it is interpolated -- reject
+        # anything that is not a plain identifier before it reaches the SQL.
+        if not _TABLE_NAME_RE.fullmatch(table):
+            raise ValueError(f"not a table name: {table!r}")
         self._connection = connection
         self._placeholder = placeholder
         self._table = table
@@ -222,11 +239,11 @@ class UpsertWriter:
 
 def load(lines: Iterable[str], writer: UpsertWriter,
          warn: Callable[[str], None] = lambda message: None,
-         layout: Sequence[FeedField] = LAYOUT) -> LoadResult:
+         feed_fields: Optional[Sequence[FeedField]] = None) -> LoadResult:
     """Load an already-opened feed through ``writer``."""
     loaded = 0
     carried_forward = 0
-    for parsed in parse_feed(lines, layout):
+    for parsed in parse_feed(lines, feed_fields):
         for message in parsed.warnings:
             warn(message)
         writer.upsert(parsed.record)
@@ -238,12 +255,14 @@ def load(lines: Iterable[str], writer: UpsertWriter,
 
 def load_feed(feed: Path, connection: Connection, placeholder: str = "?",
               table: str = DEFAULT_TABLE, commit_every: int = COMMIT_EVERY,
-              warn: Callable[[str], None] = lambda message: None) -> LoadResult:
+              warn: Callable[[str], None] = lambda message: None,
+              copybook: Optional[Path] = None) -> LoadResult:
     """Load ``feed`` into ``table``."""
     writer = UpsertWriter(connection, placeholder, table, commit_every)
+    feed_fields = layout(copybook)
     # newline="" so a line ending is left alone the way Perl's chomp does.
     with feed.open(newline="") as handle:
-        return load(handle, writer, warn)
+        return load(handle, writer, warn, feed_fields)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -258,6 +277,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--user", default=os.environ.get("DBUSER"))
     parser.add_argument("--password", default=os.environ.get("DBPASS"))
     parser.add_argument("--table", default=DEFAULT_TABLE)
+    parser.add_argument("--copybook", type=Path, default=None,
+                        help="MARREC.cpy to take the field offsets from "
+                             f"(default: ${COPYBOOK_ENV}, else the checkout)")
     parser.add_argument("--commit-every", type=int, default=COMMIT_EVERY,
                         help="records per transaction (default: %(default)s)")
     return parser
@@ -272,7 +294,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     try:
         result = load_feed(args.feed, connection, placeholder, args.table,
                            args.commit_every,
-                           warn=lambda message: print(message, file=sys.stderr))
+                           warn=lambda message: print(message, file=sys.stderr),
+                           copybook=args.copybook)
     finally:
         connection.close()
     print(result.summary())

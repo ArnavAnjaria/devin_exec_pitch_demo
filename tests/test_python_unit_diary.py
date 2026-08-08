@@ -10,6 +10,8 @@ no database.
 
 from __future__ import annotations
 
+import sqlite3
+
 import pytest
 
 from harness.engines import perl_loader, python_loader, python_loader_pg
@@ -292,12 +294,21 @@ class TestParsing:
     def test_the_layout_comes_from_the_copybook(self):
         for column, name in unit_diary.COLUMN_FIELDS:
             field = FIELDS[name]
-            layout = next(f for f in unit_diary.LAYOUT if f.column == column)
-            assert (layout.offset, layout.length) == (field.offset, field.length)
+            feed_field = next(f for f in unit_diary.layout() if f.column == column)
+            assert (feed_field.offset, feed_field.length) == (field.offset, field.length)
+
+    def test_the_copybook_can_be_pointed_somewhere_else(self, tmp_path):
+        """An installed copy has no checkout to read the copybook from."""
+        copied = tmp_path / "MARREC.cpy"
+        copied.write_text(copybook.COPYBOOK_PATH.read_text())
+        assert unit_diary.layout(copied) == unit_diary.layout()
+
+        with pytest.raises(FileNotFoundError, match=copybook.ENV_VAR):
+            copybook.parse_copybook(tmp_path / "absent.cpy")
 
     def test_the_package_and_the_harness_parse_the_copybook_the_same_way(self):
         mine = {name: (f.offset, f.length, f.packed)
-                for name, f in copybook.FIELDS.items()}
+                for name, f in copybook.fields().items()}
         harness = {name: (f.offset, f.length, f.packed) for name, f in FIELDS.items()}
         assert mine == harness
 
@@ -306,6 +317,8 @@ class TestParsing:
         never_loaded = {"duty_stat", "component", "rc_drill_stat", "brk_svc_mos",
                         "adv_matl_ind", "adv_matl_mos"}
         assert not (set(unit_diary.LOADED_COLUMNS) & never_loaded)
+        assert unit_diary.LOADED_COLUMNS == tuple(
+            f.column for f in unit_diary.layout())
         assert set(unit_diary.LOADED_COLUMNS) == set(perl_loader.LOADED_COLUMNS)
 
     def test_every_field_is_stripped(self, corpus: Corpus):
@@ -355,6 +368,11 @@ class TestParsing:
         assert unit_diary.is_zero_filled("")
         assert unit_diary.is_zero_filled("00000000")
         assert not unit_diary.is_zero_filled("19990101")
+
+    def test_a_table_name_that_is_not_an_identifier_is_refused(self):
+        connection = sqlite3.connect(":memory:")
+        with pytest.raises(ValueError, match="not a table name"):
+            unit_diary.UpsertWriter(connection, table="MARINE_MASTER; DROP TABLE X")
 
     def test_substr_matches_perl_out_of_range_semantics(self):
         assert unit_diary.substr("abc", 0, 2) == "ab"

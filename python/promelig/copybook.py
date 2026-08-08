@@ -9,16 +9,34 @@ manually maintained copy of the layout).
 This mirrors ``tests/harness/marrec.py``; the harness parses the copybook for
 fixture generation, this parses it for the production loader, and
 ``tests/test_python_unit_diary.py`` asserts the two agree field for field.
+
+The copybook is a mainframe artifact rather than package data -- deliberately, so
+there is one copy of the layout and not two. It is located by ``$MARREC_COPYBOOK``
+when that is set, and otherwise relative to the source checkout, and it is read on
+first use rather than at import so an installed copy of the package fails with the
+path in the message instead of on import.
 """
 
 from __future__ import annotations
 
+import os
 import re
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
+from types import MappingProxyType
+from typing import Mapping, Optional
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+ENV_VAR = "MARREC_COPYBOOK"
 COPYBOOK_PATH = REPO_ROOT / "cobol" / "copybook" / "MARREC.cpy"
+
+
+def copybook_path() -> Path:
+    """Where to read MARREC.cpy from: ``$MARREC_COPYBOOK``, else the checkout."""
+    override = os.environ.get(ENV_VAR)
+    return Path(override) if override else COPYBOOK_PATH
+
 
 _PIC_RE = re.compile(
     r"^\s*(?P<level>\d{2})\s+(?P<name>[A-Z0-9-]+)\s+PIC\s+(?P<pic>[9XS][^.\s]*)"
@@ -44,8 +62,12 @@ def _pic_length(pic: str) -> int:
     return int(match.group("count")) if match else len(pic)
 
 
-def parse_copybook(path: Path = COPYBOOK_PATH) -> dict[str, Field]:
+def parse_copybook(path: Optional[Path] = None) -> dict[str, Field]:
     """Parse the elementary items of a copybook into ``name -> Field``."""
+    path = copybook_path() if path is None else path
+    if not path.exists():
+        raise FileNotFoundError(
+            f"MARREC.cpy not found at {path}; set ${ENV_VAR} to its location")
     fields: dict[str, Field] = {}
     offset = 0
     for line in path.read_text().splitlines():
@@ -65,4 +87,7 @@ def parse_copybook(path: Path = COPYBOOK_PATH) -> dict[str, Field]:
     return fields
 
 
-FIELDS = parse_copybook()
+@lru_cache(maxsize=None)
+def fields(path: Optional[Path] = None) -> Mapping[str, Field]:
+    """The parsed copybook, read once per path."""
+    return MappingProxyType(parse_copybook(path))
