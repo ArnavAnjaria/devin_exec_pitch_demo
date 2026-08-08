@@ -71,6 +71,13 @@ decimal, so its result is whatever the collating sequence produces.
 The step is redundant anyway — `2000-PROCESS` applies the same rule — which is
 why nobody has noticed.
 
+Off the mainframe the comparison has no defined answer: in ASCII `'SG'` decodes
+to 37 and is kept while `'PF'` decodes to 06 and is dropped, in EBCDIC both are
+kept, and `'LC'` is not zoned decimal at all. `promelig.job` therefore treats
+non-numeric data as unfilterable and keeps the record, so the filter drops
+nobody and the board slate matches production today (owner ruling, 2026-08).
+Changing that is this ticket, not a migration PR.
+
 Reproduced by `test_def3_jcl_include_filter_points_at_the_wrong_field` and
 `test_the_include_filter_reads_non_numeric_data`.
 
