@@ -23,7 +23,7 @@ from harness.golden import compare, describe_difference, golden_path
 from harness.model import REPO_ROOT, Corpus
 from harness.normalize import Row, read_rows
 
-from promelig import cli, oracle
+from promelig import cli_extract as cli, oracle
 from promelig.sql_extract import (ADV_LOOKBACK_MOS, Candidate, ComponentError, MAX_GRADE_NUM,
                                   candidate_sql, determine, run_extract)
 

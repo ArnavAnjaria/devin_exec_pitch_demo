@@ -13,6 +13,7 @@ personnel records.
 | `sql/promotion_eligibility.sql` | Stored procedure backing the reporting extract. |
 | `perl/load_unit_diary.pl` | Fixed-width unit diary feed loader. |
 | `java/src/main/java/mil/usmc/manpower/promotion/` | Eligibility lookup for the self-service web front end. |
+| `python/promelig/` | Python replacements, migrated one component at a time. `eligibility.py` is the web tier. |
 | `tests/` | Characterization suite covering all five components. |
 
 ## Run order

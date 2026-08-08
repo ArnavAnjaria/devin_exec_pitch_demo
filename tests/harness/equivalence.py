@@ -1,9 +1,9 @@
-"""Cross-engine comparison of the three eligibility determinations.
+"""Cross-engine comparison of the eligibility determinations.
 
-The COBOL batch, the Java web service and the SQL reporting extract each decide
-promotion eligibility independently. This compares them scenario by scenario and
-reports where they disagree, so modernization work can be gated on "no new
-disagreements" rather than on any one engine being right.
+The COBOL batch, the Java web service, the SQL reporting extract and the Python
+replacements each decide promotion eligibility independently. This compares them
+scenario by scenario and reports where they disagree, so modernization work can
+be gated on "no new disagreements" rather than on any one engine being right.
 
 It compares the recorded goldens, not live engine output, so on its own it
 cannot see an engine that has drifted away from its golden. That is each suite's
@@ -23,10 +23,11 @@ from .golden import golden_path
 from .model import REPO_ROOT, Corpus
 from .normalize import Row, read_rows
 
-# python_sql is the Python replacement for the SQL reporting extract. It is held
-# to the same standard as the legacy engines: a new engine must not introduce a
-# disagreement that tests/divergences.yaml does not already describe.
-ENGINES = ("cobol", "java", "sql", "python_sql")
+# The python_* engines are the Python replacements, held to the same standard as
+# the legacy engines they replace: a new engine must not introduce a
+# disagreement that tests/divergences.yaml does not already describe, so a
+# rewrite that drifts from its original shows up here as a disagreement.
+ENGINES = ("cobol", "java", "sql", "python_sql", "python_web")
 REGISTER_PATH = REPO_ROOT / "tests" / "divergences.yaml"
 MISSING = "no row"
 
@@ -95,7 +96,7 @@ def report(corpus: Corpus) -> str:
         "=" * 31,
         f"scenarios: {len(corpus.scenarios)}   as of: {corpus.as_of}",
         "source: tests/golden/*.csv, refreshed by the engine suites",
-        f"scenarios where all three engines agree: "
+        f"scenarios where every engine agrees: "
         f"{len(corpus.scenarios) - len(by_scenario)}",
         f"scenarios with a disagreement: {len(by_scenario)}",
         "",
