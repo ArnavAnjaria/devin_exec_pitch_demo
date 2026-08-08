@@ -22,6 +22,8 @@ import datetime as dt
 from dataclasses import dataclass
 from typing import Optional
 
+from .cobol_copybook import MasterDate
+
 # WS-GRADE-TBL: minimum time in grade / time in service by target grade.
 # Duplicated in REF_GRADE_REQUIREMENTS; the two are expected to agree.
 GRADE_REQUIREMENTS: dict[int, tuple[int, int]] = {
@@ -64,11 +66,11 @@ class MarineRecord:
     edipi: int
     grade: str
     grade_num: int
-    dt_last_promo: Optional[dt.date] = None
-    dt_orig_promo: Optional[dt.date] = None
-    grade_eff_dt: Optional[dt.date] = None
-    pebd: Optional[dt.date] = None
-    dt_enlist: Optional[dt.date] = None
+    dt_last_promo: Optional[MasterDate] = None
+    dt_orig_promo: Optional[MasterDate] = None
+    grade_eff_dt: Optional[MasterDate] = None
+    pebd: Optional[MasterDate] = None
+    dt_enlist: Optional[MasterDate] = None
     red_in_grade_ind: str = "N"
     brk_svc_mos: int = 0
     adv_matl_ind: str = "N"
@@ -111,7 +113,7 @@ class Decision:
         return "Y" if self.eligible else "N"
 
 
-def month_difference(run_date: dt.date, base: Optional[dt.date]) -> int:
+def month_difference(run_date: dt.date, base: Optional[MasterDate]) -> int:
     """2150-MONTH-DIFF: whole months from ``base`` to ``run_date``.
 
     Partial months truncate -- a Marine whose anniversary day has not been
@@ -119,9 +121,11 @@ def month_difference(run_date: dt.date, base: Optional[dt.date]) -> int:
     in the future floors at zero (DIV-2: the web tier rounds any partial month
     up, the extract rounds to nearest).
 
-    An unpopulated base date is a zero CCYYMMDD, which the COBOL redefines as
-    year 0 month 0 and computes against literally; that yields a five-digit
-    month count from a data error rather than rejecting the record (DEF-4).
+    The base date is not validated, because the COBOL does not validate it: it
+    redefines eight digits into CCYY/MM/DD and computes on whatever they hold.
+    An unpopulated field is year 0 month 0; a corrupt one such as ``20241332``
+    is month 13 day 32. Either yields a month count -- reported as its low-order
+    digits (DEF-4) -- rather than an error that would end the run.
     """
     base_year, base_month, base_day = (base.year, base.month, base.day) if base else (0, 0, 0)
     months = ((run_date.year * 12) + run_date.month) - ((base_year * 12) + base_month)

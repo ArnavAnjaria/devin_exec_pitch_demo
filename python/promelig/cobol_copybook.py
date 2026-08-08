@@ -13,7 +13,6 @@ touch two migrated components at once, so it is left for a follow-up.
 
 from __future__ import annotations
 
-import datetime as dt
 import os
 import re
 from dataclasses import dataclass
@@ -34,6 +33,23 @@ _PIC_RE = re.compile(
     r"(?P<comp>\s+COMP-3)?\s*\.",
     re.IGNORECASE,
 )
+
+
+@dataclass(frozen=True)
+class MasterDate:
+    """A CCYYMMDD field, redefined into its components the way the COBOL does.
+
+    Deliberately not a :class:`datetime.date`. ``WS-BASE-DT-R`` is a redefinition
+    of eight digits, not a validated date, and ``2150-MONTH-DIFF`` computes on
+    the components whatever they hold: a master carrying ``00000101`` or
+    ``20241332`` produces a month count, not an error. Constructing a real date
+    here would abort the nightly run over one bad record and lose the whole
+    board slate, which is not what the program being replaced does.
+    """
+
+    year: int
+    month: int
+    day: int
 
 
 @dataclass(frozen=True)
@@ -106,9 +122,9 @@ def numeric(raw: bytes) -> int:
     return int(text) if text.isdigit() else 0
 
 
-def to_date(yyyymmdd: int) -> Optional[dt.date]:
-    """A CCYYMMDD field as a date, or ``None`` when the field is unpopulated."""
+def to_date(yyyymmdd: int) -> Optional[MasterDate]:
+    """A CCYYMMDD field as its three components, or ``None`` when unpopulated."""
     if not yyyymmdd:
         return None
     text = str(yyyymmdd).zfill(8)
-    return dt.date(int(text[0:4]), int(text[4:6]), int(text[6:8]))
+    return MasterDate(int(text[0:4]), int(text[4:6]), int(text[6:8]))

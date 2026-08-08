@@ -12,6 +12,7 @@ import datetime as dt
 
 import pytest
 from promelig import batch, cobol_rules as eligibility
+from promelig.cobol_copybook import parse_copybook
 from promelig.cobol_rules import MarineRecord
 
 from harness.golden import compare, describe_difference, golden_path
@@ -218,6 +219,73 @@ def test_month_counters_are_truncated_on_output():
     record = batch.encode_elig_record(decision, dt.date(2026, 6, 15))
     assert record[15:18] == b"361"
     assert record[18:22] == b"4361"
+
+
+#: Dates that are eight valid digits but not valid calendar dates. The COBOL
+#: redefines the field into CCYY/MM/DD and computes on it regardless.
+NOT_CALENDAR_DATES = [("MM-DT-LAST-PROMO", b"00000101"),
+                      ("MM-DT-LAST-PROMO", b"20241332"),
+                      ("MM-PEBD", b"00000101"),
+                      ("MM-PEBD", b"20101300")]
+
+
+def cobol_elig_record(master_record: bytes, as_of, workdir) -> bytes:
+    """The ELIGOUT record a live GnuCOBOL PROMELIG writes for one master record."""
+    import os
+    import subprocess
+
+    from harness.engines import cobol as cobol_engine
+
+    workdir.mkdir(parents=True, exist_ok=True)
+    exe = cobol_engine.build(workdir)
+    master, elig = workdir / "master.dat", workdir / "elig.dat"
+    master.write_bytes(master_record)
+    env = dict(os.environ)
+    env.update({"DD_MSTRIN": str(master), "DD_ELIGOUT": str(elig),
+                "DD_RPTOUT": str(workdir / "rpt.txt"),
+                "COB_CURRENT_DATE": as_of.strftime("%Y/%m/%d 00:00:00")})
+    subprocess.run([str(exe)], env=env, cwd=workdir, check=True,
+                   capture_output=True, timeout=60)
+    return elig.read_bytes()
+
+
+def master_with(corpus: Corpus, field: str, value: bytes) -> bytes:
+    """The corpus record for ``tig-beats-tis``, with one date field overwritten."""
+    at = parse_copybook()[field]
+    raw = bytearray(encode(corpus.by_id("tig-beats-tis")))
+    raw[at.offset:at.offset + at.length] = value
+    return bytes(raw)
+
+
+@pytest.mark.parametrize("field,value", NOT_CALENDAR_DATES)
+def test_a_date_that_is_not_a_calendar_date_still_produces_a_record(
+        corpus, tmp_path, field, value):
+    """Month 13 and year 0 reach 2150-MONTH-DIFF and come out as a month count.
+
+    Rejecting them would abort the run over one bad record and write no board
+    slate at all, where the program being replaced writes one.
+    """
+    master, elig = tmp_path / "master.dat", tmp_path / "elig.dat"
+    master.write_bytes(master_with(corpus, field, value))
+    result = batch.run(master, elig, None, corpus.as_of)
+
+    assert result.return_code == 0
+    assert len(elig.read_bytes()) == batch.ELIG_RECORD_LEN
+
+
+@pytest.mark.cobol
+@pytest.mark.parametrize("field,value", NOT_CALENDAR_DATES)
+def test_a_date_that_is_not_a_calendar_date_matches_the_cobol(
+        corpus, tmp_path, field, value):
+    """And the month count it comes out as is the one the COBOL computes."""
+    record = master_with(corpus, field, value)
+    expected = cobol_elig_record(record, corpus.as_of, tmp_path / "cobol")
+
+    master, elig = tmp_path / "master.dat", tmp_path / "elig.dat"
+    master.write_bytes(record)
+    batch.run(master, elig, None, corpus.as_of)
+
+    assert elig.read_bytes()[:35] == expected[:35]
 
 
 def test_a_missing_master_file_is_an_open_failure(tmp_path):
