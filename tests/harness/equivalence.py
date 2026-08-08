@@ -4,6 +4,10 @@ The COBOL batch, the Java web service and the SQL reporting extract each decide
 promotion eligibility independently. This compares them scenario by scenario and
 reports where they disagree, so modernization work can be gated on "no new
 disagreements" rather than on any one engine being right.
+
+It compares the recorded goldens, not live engine output, so on its own it
+cannot see an engine that has drifted away from its golden. That is each suite's
+``test_matches_golden``; run the whole suite, not this alone.
 """
 
 from __future__ import annotations
@@ -87,6 +91,7 @@ def report(corpus: Corpus) -> str:
         "Cross-engine equivalence report",
         "=" * 31,
         f"scenarios: {len(corpus.scenarios)}   as of: {corpus.as_of}",
+        "source: tests/golden/*.csv, refreshed by the engine suites",
         f"scenarios where all three engines agree: "
         f"{len(corpus.scenarios) - len(by_scenario)}",
         f"scenarios with a disagreement: {len(by_scenario)}",

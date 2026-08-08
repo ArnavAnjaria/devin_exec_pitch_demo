@@ -61,6 +61,7 @@ def test_every_grade_has_threshold_scenarios_on_both_axes(corpus: Corpus, target
             corpus.by_id(f"{axis}-{target_grade:02d}-{label}")
 
 
+@pytest.mark.cobol
 def test_every_deny_reason_is_exercised(corpus: Corpus, cobol_rows):
     produced = {row.deny_rsn for row in cobol_rows if row.deny_rsn}
     assert produced == set(DENY_REASONS)

@@ -18,6 +18,17 @@ def pytest_configure(config):
     config.addinivalue_line("markers", "slow: takes more than a few seconds")
 
 
+REQUIRED_TOOLS = {"cobol": "cobc", "perl": "perl", "docker": "docker"}
+
+
+def pytest_runtest_setup(item):
+    """Skip a suite whose engine is not installed rather than failing it."""
+    for marker in item.iter_markers():
+        tool = REQUIRED_TOOLS.get(marker.name)
+        if tool and not shutil.which(tool):
+            pytest.skip(f"{tool} is not installed; see docs/testing.md")
+
+
 @pytest.fixture(scope="session")
 def corpus():
     return load_corpus()
@@ -26,8 +37,6 @@ def corpus():
 @pytest.fixture(scope="session")
 def cobol_run(corpus, tmp_path_factory):
     """Single patched batch run shared by the COBOL tests."""
-    if not shutil.which("cobc"):
-        pytest.skip("GnuCOBOL (cobc) is not installed")
     rows, report = cobol.run(corpus, tmp_path_factory.mktemp("cobol"))
     return rows, report
 
@@ -39,8 +48,6 @@ def cobol_rows(cobol_run):
 
 @pytest.fixture(scope="session")
 def pg_database():
-    if not shutil.which("docker"):
-        pytest.skip("docker is not installed")
     with postgres.database() as container:
         yield container
 

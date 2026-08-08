@@ -28,7 +28,12 @@ Requirements:
 | JCL, corpus, equivalence | Python 3 only |
 
 Suites whose tooling is missing skip rather than fail, so a partial environment
-still gives useful signal. CI installs all of it.
+still gives useful signal — the skip is driven by the `cobol`, `perl` and
+`docker` markers, so a new test that drives an engine needs the matching marker.
+CI installs all of it.
+
+`make test-fast` only deselects the two tests marked `slow`; it still needs every
+toolchain.
 
 ## How it fits together
 
@@ -50,9 +55,13 @@ tests/corpus/scenarios.yaml ──► scenarios.csv (for the Java suite)
 ```
 
 Every engine gets the same 88 scenarios, and every engine's answer is reduced to
-the same six columns. Normalization happens only at the comparison boundary:
-`'TIG '` from COBOL and `"TIG"` from Java compare equal, but a different *answer*
-never does.
+the same six columns. `test_equivalence.py` compares the recorded goldens rather
+than re-running the engines, so it is only a drift detector in combination with
+each suite's `test_matches_golden` — `make equivalence` on its own reports on
+whatever is in `tests/golden/`, however stale that is.
+
+Normalization happens only at the comparison boundary: `'TIG '` from COBOL and
+`"TIG"` from Java compare equal, but a different *answer* never does.
 
 ### The corpus
 
