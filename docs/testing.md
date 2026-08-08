@@ -25,8 +25,8 @@ Requirements:
 | Java | JDK 17, Maven |
 | Perl | `perl`, DBD::SQLite (`apt install libdbd-sqlite3-perl`) |
 | SQL | Docker (`postgres:16-alpine`) |
-| Python extract (`python/promelig`) | Docker (`postgres:16-alpine`) |
-| JCL, corpus, equivalence | Python 3 only |
+| Python extract (`promelig.sql_extract`) | Docker (`postgres:16-alpine`) |
+| JCL, corpus, equivalence, rest of `promelig` | Python 3 only |
 
 Suites whose tooling is missing skip rather than fail, so a partial environment
 still gives useful signal — the skip is driven by the `cobol`, `perl` and
@@ -46,6 +46,7 @@ tests/corpus/scenarios.yaml ──► scenarios.csv (for the Java suite)
         │
         ├─► marrec.encode()      ──► 140-byte master file  ──► PROMELIG (GnuCOBOL)
         ├─► Corpus.load()        ──► MarineMaster objects  ──► EligibilityService
+        ├─► python_web.run()     ──► promelig.MarineMaster ──► promelig.EligibilityService
         ├─► postgres.load_corpus ──► MARINE_MASTER rows     ──► SP_PROMOTION_ELIGIBILITY
         └─► marrec.feed_line()   ──► unit diary feed        ──► load_unit_diary.pl
                                                 │
@@ -120,11 +121,15 @@ that reproduces the golden of the engine it replaces, and is registered in
 | Module | Replaces | Golden | Suite |
 | --- | --- | --- | --- |
 | `promelig.sql_extract` | `sql/promotion_eligibility.sql` | `tests/golden/python_sql.csv` | `tests/test_python_sql_extract.py` |
+| `promelig.eligibility` | `EligibilityService.java` | `tests/golden/python_web.csv` | `tests/test_python_web.py` |
 | `promelig.unit_diary` | `perl/load_unit_diary.pl` | none — see below | `tests/test_python_unit_diary.py` |
 
-`tests/golden/python_sql.csv` is byte-identical to `tests/golden/sql.csv` and is
-expected to stay that way until a behavior-change PR moves one of them;
-`test_reproduces_the_legacy_extract_row_for_row` asserts it directly.
+`tests/conftest.py` puts `python/` on `sys.path`, so the suites import the
+package without installing it.
+
+Each golden is byte-identical to the one of the engine it replaces
+(`python_sql.csv` to `sql.csv`, `python_web.csv` to `java.csv`) and is expected
+to stay that way until a behavior-change PR moves one of them.
 
 The extract runs against the same throwaway container as the procedure, so its
 suite carries the `docker` marker. Its month arithmetic and denial rules are also
