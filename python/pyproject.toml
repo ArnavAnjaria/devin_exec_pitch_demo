@@ -16,6 +16,8 @@ dependencies = []
 postgres = ["psycopg2-binary>=2.9.9"]
 
 [project.scripts]
+promelig-batch = "promelig.batch:main"
+promelig-job = "promelig.job:main"
 promelig-sql-extract = "promelig.cli_extract:main"
 promelig-eligibility = "promelig.cli_web:main"
 load-unit-diary = "promelig.unit_diary:main"

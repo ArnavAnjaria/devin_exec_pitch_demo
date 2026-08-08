@@ -28,6 +28,9 @@ Requirements:
 | Python extract (`promelig.sql_extract`) | Docker (`postgres:16-alpine`) |
 | JCL, corpus, equivalence, rest of `promelig` | Python 3 only |
 
+The Python batch suite runs on Python 3 alone, but where `cobc` is installed it
+additionally compares itself against a live GnuCOBOL run.
+
 Suites whose tooling is missing skip rather than fail, so a partial environment
 still gives useful signal — the skip is driven by the `cobol`, `perl` and
 `docker` markers, so a new test that drives an engine needs the matching marker.
@@ -48,7 +51,8 @@ tests/corpus/scenarios.yaml ──► scenarios.csv (for the Java suite)
         ├─► Corpus.load()        ──► MarineMaster objects  ──► EligibilityService
         ├─► python_web.run()     ──► promelig.MarineMaster ──► promelig.EligibilityService
         ├─► postgres.load_corpus ──► MARINE_MASTER rows     ──► SP_PROMOTION_ELIGIBILITY
-        └─► marrec.feed_line()   ──► unit diary feed        ──► load_unit_diary.pl
+        ├─► marrec.feed_line()   ──► unit diary feed        ──► load_unit_diary.pl
+        └─► marrec.encode()      ──► 140-byte master file  ──► promelig.batch (Python)
                                                 │
                                                 ▼
                         normalized rows: edipi,tgt_grade,tig_mos,tis_mos,elig_ind,deny_rsn
@@ -120,6 +124,7 @@ that reproduces the golden of the engine it replaces, and is registered in
 
 | Module | Replaces | Golden | Suite |
 | --- | --- | --- | --- |
+| `promelig.batch`, `promelig.job` | `cobol/PROMELIG.cbl`, `jcl/PROMELIG.jcl` | `tests/golden/python_batch.csv` | `tests/test_python_batch.py`, `tests/test_python_job.py` |
 | `promelig.sql_extract` | `sql/promotion_eligibility.sql` | `tests/golden/python_sql.csv` | `tests/test_python_sql_extract.py` |
 | `promelig.eligibility` | `EligibilityService.java` | `tests/golden/python_web.csv` | `tests/test_python_web.py` |
 | `promelig.unit_diary` | `perl/load_unit_diary.pl` | none — see below | `tests/test_python_unit_diary.py` |
@@ -128,8 +133,24 @@ that reproduces the golden of the engine it replaces, and is registered in
 package without installing it.
 
 Each golden is byte-identical to the one of the engine it replaces
-(`python_sql.csv` to `sql.csv`, `python_web.csv` to `java.csv`) and is expected
-to stay that way until a behavior-change PR moves one of them.
+(`python_batch.csv` to `cobol.csv`, `python_sql.csv` to `sql.csv`,
+`python_web.csv` to `java.csv`) and is expected to stay that way until a
+behavior-change PR moves one of them.
+
+The batch goes further than its golden: it reads the same master file through
+the same copybook and writes the same 60-byte extract, so
+`tests/test_python_batch.py` also compares the raw extract records and the
+RPTOUT line against a live GnuCOBOL run wherever `cobc` is installed.
+`promelig.job` replaces `jcl/PROMELIG.jcl`, and `tests/test_python_job.py` pins
+its step order and wiring the way `tests/test_jcl_job.py` pins the JCL.
+
+The batch keeps its own rules module, `promelig.cobol_rules`, separate from
+`promelig.eligibility`: COBOL and Java do not agree today (DIV-2, DIV-3, DIV-5),
+so a single shared module would have to pick a winner, which is exactly the
+decision the divergence-resolution PR exists to make. `promelig.cobol_copybook`
+and `promelig.copybook` are split for a duller reason — the batch needs whole
+records and COMP-3 decoding, the loader only needs offsets — and merging them is
+safe housekeeping for a follow-up.
 
 The extract runs against the same throwaway container as the procedure, so its
 suite carries the `docker` marker. Its month arithmetic and denial rules are also

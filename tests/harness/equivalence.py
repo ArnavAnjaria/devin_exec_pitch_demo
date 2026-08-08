@@ -27,7 +27,8 @@ from .normalize import Row, read_rows
 # the legacy engines they replace: a new engine must not introduce a
 # disagreement that tests/divergences.yaml does not already describe, so a
 # rewrite that drifts from its original shows up here as a disagreement.
-ENGINES = ("cobol", "java", "sql", "python_sql", "python_web")
+ENGINES = ("cobol", "java", "sql",
+           "python_batch", "python_sql", "python_web")
 REGISTER_PATH = REPO_ROOT / "tests" / "divergences.yaml"
 MISSING = "no row"
 

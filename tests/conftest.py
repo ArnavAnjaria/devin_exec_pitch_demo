@@ -5,11 +5,12 @@ from pathlib import Path
 import pytest
 
 TESTS_DIR = Path(__file__).resolve().parent
+REPO_ROOT = TESTS_DIR.parent
 sys.path.insert(0, str(TESTS_DIR))
 # The Python replacements live outside the test tree and are imported by name.
 sys.path.insert(1, str(TESTS_DIR.parent / "python"))
 
-from harness.engines import cobol, postgres  # noqa: E402
+from harness.engines import cobol, postgres, python_batch  # noqa: E402
 from harness.model import load_corpus  # noqa: E402
 
 
@@ -46,6 +47,17 @@ def cobol_run(corpus, tmp_path_factory):
 @pytest.fixture(scope="session")
 def cobol_rows(cobol_run):
     return cobol_run[0]
+
+
+@pytest.fixture(scope="session")
+def python_run(corpus, tmp_path_factory):
+    """Single Python batch run shared by the Python tests."""
+    return python_batch.run(corpus, tmp_path_factory.mktemp("python"))
+
+
+@pytest.fixture(scope="session")
+def python_rows(python_run):
+    return python_run[0]
 
 
 @pytest.fixture(scope="session")
